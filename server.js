@@ -15,14 +15,48 @@ app.use(
 );
 
 app.use("/", express.static(path.join(__dirname, "public")));
+
 const server = http.createServer(app);
 const io = new Server(server);
+server.listen(conf.port, () => {
+  console.log("server avviato sulla porta: " + conf.port);
+});
+
+const listaUtenti = [];
+
 io.on('connection', (socket) => {
-   console.log("socket connected: " + socket.id);
-   io.emit("chat", "new client: " + socket.id);
-   socket.on('message', (message) => {
-      const response = socket.id + ': ' + message;
-      console.log(response);
-      io.emit("chat", response);
-   });
+  console.log("socket connessa: " + socket.id);
+  socket.on("nome", (nome) => {
+    listaUtenti.push({
+      socketId: socket.id,
+      nome: nome
+    });
+    io.emit("chat", nome + " si è unito alla chat.");
+    io.emit("lista", listaUtenti);
+  });
+  
+  socket.on("messaggio", (messaggio) => {
+    const utente = listaUtenti.find(u => u.socketId === socket.id);
+    let nome ="Sconosciuto";
+    if (utente != undefined){
+      nome=utente.nome
+    }
+    const risposta = nome + ": " + messaggio;
+    console.log(risposta);
+    io.emit("chat", risposta);
+  });
+
+  socket.on("list", () => {
+    socket.emit("lista", listaUtenti);
+  });
+
+  socket.on("disconnect", () => {
+    const indice = listaUtenti.findIndex(u => u.socketId === socket.id);
+    if (indice !== -1) {
+      const nome = listaUtenti[indice].nome;
+      listaUtenti.splice(indice, 1);
+      io.emit("chat", nome + " ha abbandonato la chat.");
+      io.emit("lista", listaUtenti);
+    }
+  });
 });
